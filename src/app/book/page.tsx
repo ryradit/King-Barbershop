@@ -14,7 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { CheckCircle, Clock, Phone, User, Send, Loader2, AlertCircle } from 'lucide-react';
-// import { sendWhatsAppBookingNotification } from '../actions/sendWhatsAppBookingNotification';
+// Ensure this import path is correct and the file exists
+import { sendWhatsAppBookingNotification } from '@/app/actions/sendWhatsAppNotification';
 import { saveAppointmentToFirestore } from '@/app/actions/saveAppointment';
 import { getBookingCountsForDate } from '@/app/actions/getBookingCounts';
 import { cn } from '@/lib/utils';
@@ -53,10 +54,9 @@ export default function BookingPage() {
 
   useEffect(() => {
     let isEffectMounted = true;
-    const dateForThisEffectInstance = date; // Capture the Date object for this effect run
+    const dateForThisEffectInstance = date; 
 
     if (dateForThisEffectInstance) {
-      // Use UTC YYYY-MM-DD string for Firestore query, as before
       const formattedDateForFirestoreQuery = dateForThisEffectInstance.toISOString().split('T')[0];
       
       setIsFetchingSlots(true);
@@ -64,7 +64,6 @@ export default function BookingPage() {
 
       getBookingCountsForDate(formattedDateForFirestoreQuery)
         .then(counts => {
-          // Staleness check: Compare local date parts of dateForThisEffectInstance with current date state
           const currentDateInState = date;
           if (!isEffectMounted || 
               !currentDateInState || 
@@ -72,12 +71,11 @@ export default function BookingPage() {
               dateForThisEffectInstance.getMonth() !== currentDateInState.getMonth() ||
               dateForThisEffectInstance.getDate() !== currentDateInState.getDate()
           ) {
-            return; // Stale data for a different selected day, or current date is undefined. Do nothing.
+            return; 
           }
 
-          const currentNow = new Date(); // Current local date/time
+          const currentNow = new Date(); 
           
-          // "Is Today" check: Compare local date parts of dateForThisEffectInstance with currentNow
           const isSelectedDateToday = 
             dateForThisEffectInstance.getFullYear() === currentNow.getFullYear() &&
             dateForThisEffectInstance.getMonth() === currentNow.getMonth() &&
@@ -90,9 +88,8 @@ export default function BookingPage() {
           availableTimes.forEach(time => {
             const [slotHour, slotMinute] = time.split(':').map(Number);
             let isDisabledByCount = (counts[time] || 0) >= BOOKING_LIMIT_PER_SLOT;
-            let isDisabledByTime = false; // Default to false
+            let isDisabledByTime = false; 
 
-            // Only apply time-based disabling if the selected date is indeed today
             if (isSelectedDateToday) {
               if (slotHour < currentSystemHour) {
                 isDisabledByTime = true;
@@ -112,7 +109,7 @@ export default function BookingPage() {
               dateForThisEffectInstance.getMonth() !== currentDateInState.getMonth() ||
               dateForThisEffectInstance.getDate() !== currentDateInState.getDate()
           ) {
-            return; // Stale error for a different selected day. Do nothing.
+            return; 
           }
           console.error("Error fetching booking counts:", error);
           toast({
@@ -132,12 +129,12 @@ export default function BookingPage() {
               dateForThisEffectInstance.getMonth() !== currentDateInState.getMonth() ||
               dateForThisEffectInstance.getDate() !== currentDateInState.getDate()
           ) {
-            return; // Don't update fetching state if stale or for a different selected day
+            return; 
           }
           setIsFetchingSlots(false);
         });
     } else {
-      setTimeSlotDisabledStatus({}); // Clear status if no date is selected
+      setTimeSlotDisabledStatus({}); 
     }
     
     return () => {
@@ -177,14 +174,26 @@ export default function BookingPage() {
 
     setIsSubmitting(true);
 
-    const bookingDetails = {
+    const firestoreBookingDetails = {
       customerName: name,
-      bookingDate: date.toISOString().split('T')[0], // UTC YYYY-MM-DD for Firestore
+      bookingDate: date.toISOString().split('T')[0], 
       bookingTime: selectedTime,
       customerPhone: phone,
       paymentMethod: paymentMethods.find(pm => pm.value === paymentMethod)?.labelKey[language] || paymentMethod,
       language: language
     };
+    
+    const notificationPayload = {
+      customerName: name,
+      bookingDate: date.toLocaleDateString(language === 'id' ? 'id-ID' : 'en-US', {
+        year: 'numeric', month: 'long', day: 'numeric'
+      }),
+      bookingTime: selectedTime,
+      customerPhone: phone,
+      paymentMethod: paymentMethods.find(pm => pm.value === paymentMethod)?.labelKey[language] || paymentMethod,
+      language: language
+    };
+
 
     toast({
       title: t({ en: 'Appointment Booked!', id: 'Janji Temu Dipesan!' }),
@@ -193,33 +202,48 @@ export default function BookingPage() {
     });
 
     try {
-      const firestoreResult = await saveAppointmentToFirestore(bookingDetails);
+      const firestoreResult = await saveAppointmentToFirestore(firestoreBookingDetails);
       toast({
         title: t(firestoreResult.messageKey),
         variant: firestoreResult.success ? 'default' : 'destructive',
       });
 
       if (firestoreResult.success) {
-        const dateBookedForFirestore = bookingDetails.bookingDate; // This is UTC YYYY-MM-DD
+        try {
+          const notificationResult = await sendWhatsAppBookingNotification(notificationPayload);
+          toast({
+            title: t(notificationResult.messageKey),
+            variant: notificationResult.success ? 'default' : 'destructive',
+          });
+        } catch (error) {
+          console.error("Error calling sendWhatsAppBookingNotification:", error);
+          toast({
+            title: t({ en: 'Notification Error', id: 'Kesalahan Notifikasi' }),
+            description: t({ en: 'Could not send WhatsApp notification to barber.', id: 'Tidak dapat mengirim notifikasi WhatsApp ke barber.' }),
+            variant: 'destructive',
+          });
+        }
         
-        // Re-fetch counts for the date the booking was made FOR.
-        // The 'date' state object still holds the local Date object for the booked day.
-        if (date && date.toISOString().split('T')[0] === dateBookedForFirestore) { // Ensure we are updating slots for the correct day
+        const dateBookedForFirestore = firestoreBookingDetails.bookingDate; 
+        
+        const currentSelectedDate = date; 
+        if (currentSelectedDate && currentSelectedDate.toISOString().split('T')[0] === dateBookedForFirestore) { 
           getBookingCountsForDate(dateBookedForFirestore)
             .then(counts => {
-              // Additional staleness check: Ensure the calendar selection hasn't changed away from the booked date
-              const currentlySelectedDateInState = date;
-              if (!currentlySelectedDateInState || 
-                  currentlySelectedDateInState.toISOString().split('T')[0] !== dateBookedForFirestore) {
-                return; // User has navigated away, don't update slots for the old date
+              const latestSelectedDateInState = date; 
+              if (!latestSelectedDateInState || 
+                  latestSelectedDateInState.getFullYear() !== currentSelectedDate.getFullYear() ||
+                  latestSelectedDateInState.getMonth() !== currentSelectedDate.getMonth() ||
+                  latestSelectedDateInState.getDate() !== currentSelectedDate.getDate()
+              ) {
+                return; 
               }
 
               const currentNow = new Date();
-              // "Is Today" check for the booked date (using the 'date' state object)
               const isBookedDateToday = 
-                date.getFullYear() === currentNow.getFullYear() &&
-                date.getMonth() === currentNow.getMonth() &&
-                date.getDate() === currentNow.getDate();
+                currentSelectedDate.getFullYear() === currentNow.getFullYear() &&
+                currentSelectedDate.getMonth() === currentNow.getMonth() &&
+                currentSelectedDate.getDate() === currentNow.getDate();
 
               const currentSystemHour = currentNow.getHours();
               const currentSystemMinute = currentNow.getMinutes();
