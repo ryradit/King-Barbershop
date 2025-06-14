@@ -185,15 +185,22 @@ export default function ChatbotPopupInner({ initialMessage }: ChatbotPopupInnerP
 
 
     try {
-      const lowerMessage = messageText.toLowerCase();
+      const lowerMessageText = messageText.toLowerCase();
       let botResponse = '';
       let quickReplies: QuickReplyOption[] | undefined = defaultQuickReplyOptions;
       let imageDetails: Pick<Message, 'imageUrl' | 'imageAltKey' | 'imageAiHint'> | undefined = undefined;
       let flowUsed: 'book' | 'recommend' | 'trend' | 'feedback' | 'general' = 'general';
 
+      // Keywords for direct routing to answerHairstyleQuestion
+      const pricingKeywords = [t({id: "harga", en: "price"}), t({id: "berapa", en: "how much"}), t({id: "biaya", en: "cost"})];
+      const serviceKeywords = [t({id: "potong rambut", en: "haircut"}), t({id: "cukur", en: "shave"}), t({id: "potong", en: "cut"}), t({id: "servis", en: "service"}), t({id: "layanan", en: "service"})];
+      
+      const isDirectPricingQuery = pricingKeywords.some(kw => lowerMessageText.includes(kw)) && 
+                                   serviceKeywords.some(kw => lowerMessageText.includes(kw));
+
       if (conversationContext === 'awaiting_recommendation_details') {
         flowUsed = 'recommend';
-        const extracted = parseRecommendationDetailsFromText(lowerMessage, language);
+        const extracted = parseRecommendationDetailsFromText(lowerMessageText, language);
         const updatedDetails = { ...pendingRecommendationDetails, ...extracted };
         setPendingRecommendationDetails(updatedDetails);
 
@@ -233,10 +240,10 @@ export default function ChatbotPopupInner({ initialMessage }: ChatbotPopupInnerP
             { textKey: { en: 'Curly', id: 'Keriting' }, action: 'provide_detail', payload: { text: language === 'id' ? 'rambut keriting' : 'curly hair'} },
           ];
         }
-      } else if (lowerMessage.includes(t({en: "recommend", id: "rekomendasi"})) || lowerMessage.includes(t({en: "suggest", id: "saran"})) || lowerMessage.includes(t({en: "style", id: "gaya"}))) {
+      } else if (lowerMessageText.includes(t({en: "recommend", id: "rekomendasi"})) || lowerMessageText.includes(t({en: "suggest", id: "saran"})) || lowerMessageText.includes(t({en: "style", id: "gaya"}))) {
         flowUsed = 'recommend';
         setPendingRecommendationDetails({}); // Clear previous
-        const extracted = parseRecommendationDetailsFromText(lowerMessage, language);
+        const extracted = parseRecommendationDetailsFromText(lowerMessageText, language);
         setPendingRecommendationDetails(extracted);
 
         if (extracted.faceShape && extracted.hairType) {
@@ -276,12 +283,12 @@ export default function ChatbotPopupInner({ initialMessage }: ChatbotPopupInnerP
             { textKey: { en: 'Curly', id: 'Keriting' }, action: 'provide_detail', payload: { text: language === 'id' ? 'rambut keriting' : 'curly hair'} },
           ];
         }
-      } else if (lowerMessage.includes(t({en: "book", id: "pesan"})) || lowerMessage.includes(t({en: "appointment", id: "janji"}))) {
+      } else if (lowerMessageText.includes(t({en: "book", id: "pesan"})) || lowerMessageText.includes(t({en: "appointment", id: "janji"}))) {
         flowUsed = 'book';
-        const nameMatch = lowerMessage.match(language === 'id' ? /(?:nama[:\s]+)([a-zA-Z\s]+)(?:,|$)/i : /(?:name[:\s]+)([a-zA-Z\s]+)(?:,|$)/i);
-        const dateMatch = lowerMessage.match(/(\d{4}-\d{2}-\d{2})/);
-        const timeMatch = lowerMessage.match(/(\d{2}:\d{2})/);
-        const phoneMatch = lowerMessage.match(language === 'id' ? /(?:\bnomor\b|\btelp\b|\btelepon\b)[:\s]*(\d[\d\s-]{7,})/i : /(?:\bphone\b)[:\s]*(\d[\d\s-]{7,})/i);
+        const nameMatch = lowerMessageText.match(language === 'id' ? /(?:nama[:\s]+)([a-zA-Z\s]+)(?:,|$)/i : /(?:name[:\s]+)([a-zA-Z\s]+)(?:,|$)/i);
+        const dateMatch = lowerMessageText.match(/(\d{4}-\d{2}-\d{2})/);
+        const timeMatch = lowerMessageText.match(/(\d{2}:\d{2})/);
+        const phoneMatch = lowerMessageText.match(language === 'id' ? /(?:\bnomor\b|\btelp\b|\btelepon\b)[:\s]*(\d[\d\s-]{7,})/i : /(?:\bphone\b)[:\s]*(\d[\d\s-]{7,})/i);
 
         if (nameMatch && dateMatch && timeMatch && phoneMatch) {
           const appointmentData = {
@@ -298,15 +305,23 @@ export default function ChatbotPopupInner({ initialMessage }: ChatbotPopupInnerP
         }
         setConversationContext('idle');
         setPendingRecommendationDetails({});
-      } else if (lowerMessage.includes(t({en: "trend", id: "tren"}))) {
+      } else if (lowerMessageText.includes(t({en: "trend", id: "tren"}))) {
         flowUsed = 'trend';
         const result = await suggestTrendingHaircuts({ language });
         botResponse = result.trends;
         botResponse += `\n\n${t({ en: "Is there anything else I can help you with?", id: "Ada lagi yang bisa saya bantu?" })}`;
         setConversationContext('idle');
         setPendingRecommendationDetails({});
+      } else if (isDirectPricingQuery) {
+        flowUsed = 'general'; // Directly use answerHairstyleQuestion for pricing
+        const generalAnswerResult = await answerHairstyleQuestion({ question: messageText, language });
+        botResponse = generalAnswerResult.answer;
+        botResponse += `\n\n${t({ en: "Is there anything else I can assist you with regarding hairstyles or our services?", id: "Ada lagi yang bisa saya bantu terkait gaya rambut atau layanan kami?" })}`;
+        setConversationContext('idle');
+        setPendingRecommendationDetails({});
+        quickReplies = defaultQuickReplyOptions;
       } else { 
-        flowUsed = 'feedback'; // Try feedback flow first
+        flowUsed = 'feedback'; // Try feedback flow first for other cases
         const feedbackResult = await handleCustomerFeedback({ inputText: messageText, language, source: 'chatbot' });
         if (feedbackResult.isNegative && feedbackResult.response) {
           botResponse = feedbackResult.response;
