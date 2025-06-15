@@ -26,7 +26,7 @@ const barbersData: Barber[] = [
       en: 'Daus is a passionate and versatile barber with a keen eye for detail. He excels in a wide range of styles, from classic cuts to modern trends, ensuring every client gets a look they love.', 
       id: 'Daus adalah barber yang bersemangat dan serba bisa dengan perhatian tajam terhadap detail. Ia unggul dalam berbagai gaya, dari potongan klasik hingga tren modern, memastikan setiap klien mendapatkan tampilan yang mereka sukai.' 
     },
-    imageUrl: '/images/dawus.jpg',
+    imageUrl: '/images/daus.png',
     aiHint: 'male barber Daus portrait',
     experience: 5, // Example experience
   },
