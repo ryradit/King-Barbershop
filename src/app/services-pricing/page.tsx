@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { Scissors, ShoppingBag, Tag, ChevronRight, Star, Palette, Sparkles, Wind } from 'lucide-react';
+import { Scissors, ShoppingBag, Tag, ChevronRight, Star, Palette, Sparkles, Wind, Waves } from 'lucide-react';
 import Link from 'next/link';
 
 interface ServiceOrProductItem {
@@ -100,6 +100,16 @@ const groomingServices: ServiceOrProductItem[] = [
     priceKey: { en: 'Rp 300,000', id: 'Rp 300.000' },
     icon: <Palette className="h-6 w-6 text-primary" />
   },
+  {
+    id: 'perming',
+    nameKey: { en: 'Perming', id: 'Perming (Keriting Rambut)' },
+    descriptionKey: { 
+      en: 'Chemical hair perming service to create curls or waves. Includes Hair Cut.', 
+      id: 'Layanan keriting rambut kimiawi untuk menciptakan ikal atau gelombang. Termasuk Potong Rambut.' 
+    },
+    priceKey: { en: 'Rp 250,000', id: 'Rp 250.000' },
+    icon: <Waves className="h-6 w-6 text-primary" />
+  },
 ];
 
 const groomingProducts: ServiceOrProductItem[] = [
@@ -114,7 +124,7 @@ const groomingProducts: ServiceOrProductItem[] = [
     icon: <ShoppingBag className="h-6 w-6 text-primary" />,
   },
   {
-    id: 'prod_hair_tonic_kb', // Changed ID to be more specific if needed
+    id: 'prod_hair_tonic_kb', 
     nameKey: { en: 'Hair Tonic King Barbershop', id: 'Hair Tonic King Barbershop' },
     descriptionKey: {
       en: 'Nourishing hair tonic to promote healthy scalp and hair.',
